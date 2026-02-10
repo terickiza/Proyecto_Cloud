@@ -60,6 +60,7 @@ sudo curl localhost:5000
 
 
 ##TEST##
+
 curl -i -X POST "http://localhost:5000/DevOps" \
   -H "Content-Type: application/json" \
   -d '{
@@ -69,11 +70,14 @@ curl -i -X POST "http://localhost:5000/DevOps" \
     "timeToLifeSec": 45
   }'
  
-
-curl -i -X POST "http://localhost:5000/DevOps"   -H "Content-Type: application/json"   -d '{?
+curl -i -X POST "http://20.121.1.123:5000/DevOps" \
+  -H "Content-Type: application/json" \
+  -d '{
     "message": "This is a test",
     "to": "Juan Perez",
-    "from": "Rita Aturia",
+    "from": "Rita Asturia",
     "timeToLifeSec": 45
+  }'
+ 
  
   
