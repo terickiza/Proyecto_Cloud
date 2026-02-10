@@ -78,6 +78,19 @@ curl -i -X POST "http://20.121.1.123:5000/DevOps" \
     "from": "Rita Asturia",
     "timeToLifeSec": 45
   }'
+
+#TEST WINDOWS
+$body = @{
+  message = "This is a test"
+  to = "Juan Perez"
+  from = "Rita Asturia"
+  timeToLifeSec = 45
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Post `
+  -Uri "http://20.121.1.123:5000/DevOps" `
+  -ContentType "application/json" `
+  -Body $body
  
  
   
