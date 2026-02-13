@@ -81,6 +81,257 @@ curl -i -X POST "http://20.121.1.123:5000/DevOps" \
 
 #TEST WINDOWS
 curl -i -X POST "http://20.121.1.123:5000/DevOps" -H "Content-Type: application/json" -d "{\"message\":\"This is a test\",\"to\":\"Juan Perez\",\"from\":\"Rita Asturia\",\"timeToLifeSec\":45}"
+
+
+######
+Laboratorio Cloud: Microservicio en Azure con APIM, Application Gateway, AKS (NGINX Ingress) y Terraform 
+
+Documento de Instrucciones Paso a Paso 
+Autor: David Balbuca Castillo 
+Fecha: Diciembre 2025 
+
  
+
+1. Objetivo 
+
+Construir, asegurar y desplegar un microservicio REST en Azure con un único endpoint (/DevOps), protegido por API Key y JWT, usando Azure API Management (APIM) como gateway lógico, Application Gateway como gateway de red (WAF/TLS), y AKS con NGINX Ingress expuesto mediante Internal Load Balancer (ILB). Toda la infraestructura se define y despliega con Terraform; el código se publica en un repositorio público de Azure Devops y se entrega un pipeline CI/CD en Azure DevOps. 
+
+2. Arquitectura 
+
+C:\Users\dbalbuca\AppData\Local\Microsoft\Windows\INetCache\Content.MSO\64F57C56.tmp 
+
+ 
+
+Roles: 
+
+- APIM: Gateway lógico, políticas, validación de API Key y JWT, routing al backend. 
+
+- Application Gateway: Gateway de red L7, TLS/WAF y puente hacia el ILB privado del Ingress. 
+
+- AKS + NGINX Ingress: Orquestación y enrutamiento interno a los pods del microservicio. 
+
+- Key Vault (por alumno): almacenamiento seguro de secretos (p. ej., JWT_SECRET, credenciales de pipeline). 
+
+3. Requisitos funcionales del microservicio 
+
+Crear un microservicio REST con: 
+
+- Endpoint único: /DevOps 
+
+- Método permitido: solo HTTP POST; otros métodos devuelven {"error":"ERROR"} 
+
+- Body esperado (exacto): 
+
+{ 
+  "message": "This is a test", 
+  "to": "Juan Perez", 
+  "from": "Rita Asturia", 
+  "timeToLifeSec": 45 
+} 
+
+- Respuesta válida: 
+
+{ 
+  "message": "Hello Juan Perez your message will be sent" 
+} 
+
+- Manejo de errores: body inválido o método ≠ POST → {"error":"ERROR"} 
+
+4. Seguridad (en APIM) 
+
+- API Key fija en header X-Parse-REST-API-Key: 2f5ae96c-b558-4c7b-a590-a501ae1c3f6c 
+
+- JWT único por transacción en header X-JWT-KWY. Validación con la política <validate-jwt> en APIM (issuer/audience/exp/firma). 
+
+Ejemplo de política inbound en APIM: 
+
+<inbound> 
+  <base /> 
+  <choose> 
+    <when condition="@(context.Request.Headers.GetValueOrDefault("X-Parse-REST-API-Key") != "2f5ae96c-b558-4c7b-a590-a501ae1c3f6c")"> 
+      <return-response> 
+        <set-status code="401" reason="Unauthorized" /> 
+        <set-body>{"error":"ERROR"}</set-body> 
+      </return-response> 
+    </when> 
+  </choose> 
+  <validate-jwt header-name="X-JWT-KWY" failed-validation-httpcode="401" failed-validation-error-message="Invalid JWT"> 
+    <openid-config url="https://login.microsoftonline.com/{tenant}/v2.0/.well-known/openid-configuration" /> 
+    <required-claims> 
+      <claim name="aud" match="any"> 
+        <value>api://devops-lab</value> 
+      </claim> 
+    </required-claims> 
+  </validate-jwt> 
+  <set-backend-service base-url="https://<APPGW_HOST>" /> 
+</inbound> 
+
+5. Entorno y despliegue (Terraform + Helm) 
+
+Cada estudiante crea: 
+
+1) Su Azure Key Vault (cargar secretos: JWT-SECRET, etc.). 
+
+2) Su AKS (mínimo 2 nodos pequeños) y NGINX Ingress con Service tipo LoadBalancer **interno** (ILB). 
+
+3) Su microservicio containerizado (imagen en ACR compartido o propio). 
+
+El instructor provee/compartirá: 
+
+- Una instancia de APIM (SKU Developer) común con una API por alumno (ruta base distinta) que apunta al Application Gateway. 
+
+- Un Application Gateway común que enruta al ILB de cada alumno (backends por alumno o por host/path). 
+
+6. Pasos detallados (Cómo realizar cada parte) 
+
+A) Crear Key Vault (por alumno) 
+
+• Con Terraform: definir azurerm_key_vault y azurerm_key_vault_secret (p. ej., JWT-SECRET). 
+• Dar permisos a: identidad administrada de AKS (CSI driver) y Service Principal del pipeline. 
+• (Opcional avanzado) Private Endpoint a una VNet. 
+
+B) Crear AKS y NGINX Ingress (ILB) 
+
+• Con Terraform: azurerm_kubernetes_cluster con autoscaler habilitado. 
+• Instalar NGINX Ingress por Helm (helm_release). 
+• Service del Ingress: annotation internal para ILB privado:  
+
+service.beta.kubernetes.io/azure-load-balancer-internal: "true" 
+
+C) Desplegar el microservicio 
+
+• Crear Deployment (replicas=2), Service (ClusterIP), Ingress (path /DevOps), HPA. 
+• Consumir secretos de Key Vault (CSI driver) o variables de entorno inyectadas por pipeline. 
+
+D) Configurar Application Gateway (común) 
+
+• Crear listener HTTPS y WAF opcional. 
+• Backend pool: IP/hostname del ILB de cada alumno. 
+• Rules: routing por host/path hacia cada backend (p. ej., alumnoX.lab → ILB alumnoX). 
+
+E) Configurar APIM (común) 
+
+• Crear API por alumno (ruta base distinta). 
+• Políticas: validar X-Parse-REST-API-Key y <validate-jwt> en header X-JWT-KWY. 
+• Backend: https://<APPGW_HOST> (Application Gateway). 
+
+F) Pipeline CI/CD (Azure DevOps) 
+
+• Build: deps, lint, docker build/push → ACR. 
+• Test: unit tests + cobertura. 
+• Deploy: terraform apply (infra del alumno) + helm upgrade (app). 
+• Regla: branch master/main despliega a producción automáticamente. 
+
+7. Ejemplos de implementación 
+
+Ejemplo de microservicio (Node.js + Express): 
+
+const express = require('express'); 
+const app = express(); 
+app.use(express.json()); 
+ 
+function validBody(b){ 
+  return b && typeof b.message==='string' && typeof b.to==='string' && typeof b.from==='string' && Number.isInteger(b.timeToLifeSec); 
+} 
+ 
+app.post('/DevOps', (req,res)=>{ 
+  if(!validBody(req.body)) return res.status(400).json({error:'ERROR'}); 
+  return res.status(200).json({message: `Hello ${req.body.to} your message will be sent`}); 
+}); 
+ 
+app.all('/DevOps', (req,res)=>{ 
+  if(req.method!=='POST') return res.status(405).json({error:'ERROR'}); 
+}); 
+ 
+const port = process.env.PORT || 8080; 
+app.listen(port, ()=>console.log(`Listening on ${port}`)); 
+ 
+
+Service Ingress (ILB) — annotation: 
+
+apiVersion: v1 
+kind: Service 
+metadata: 
+  name: ingress-nginx-controller 
+  annotations: 
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true" 
+spec: 
+  type: LoadBalancer 
+  ports: 
+  - port: 80 
+    targetPort: 80 
+  selector: 
+    app.kubernetes.io/name: ingress-nginx 
+ 
+
+HPA (ejemplo): 
+
+apiVersion: autoscaling/v2 
+kind: HorizontalPodAutoscaler 
+metadata: 
+  name: devops-ms-hpa 
+spec: 
+  scaleTargetRef: 
+    apiVersion: apps/v1 
+    kind: Deployment 
+    name: devops-ms 
+  minReplicas: 2 
+  maxReplicas: 10 
+  metrics: 
+  - type: Resource 
+    resource: 
+      name: cpu 
+      target: 
+        type: Utilization 
+        averageUtilization: 60 
+ 
+
+8. Prueba oficial (curl) 
+
+El cliente llama solo a APIM. Genera un JWT único por transacción (ejemplo con Entra ID) y ejecuta: 
+
+JWT=$(az account get-access-token --resource api://devops-lab --query accessToken -o tsv) 
+ 
+curl -X POST \ 
+  -H "X-Parse-REST-API-Key: 2f5ae96c-b558-4c7b-a590-a501ae1c3f6c" \ 
+  -H "X-JWT-KWY: ${JWT}" \ 
+  -H "Content-Type: application/json" \ 
+  -d '{ "message": "This is a test", "to": "Juan Perez", "from": "Rita Asturia", "timeToLifeSec": 45 }' \ 
+  https://<APIM_HOST>/<ruta-alumno>/DevOps 
+ 
+
+9. Criterios de evaluación 
+
+- Cumplimiento estricto del contrato del endpoint /DevOps. 
+
+- Seguridad: validación API Key y JWT en APIM. 
+
+- Infraestructura: Terraform para AKS, Key Vault, Ingress (ILB), y recursos del alumno. 
+
+- CI/CD: Build + Test + Deploy con despliegue automático en master/main. 
+
+- Calidad: pruebas automatizadas, análisis estático, documentación clara. 
+
+10. Buenas prácticas y costos (laboratorio) 
+
+- Apagar el AKS fuera del horario (p. ej., 4h/día × 5d/sem). Coste estimado muy bajo con B2s. 
+
+- Compartir APIM Developer para todos los alumnos (precio plano por instancia). 
+
+- Un Application Gateway compartido puede enrutar a los ILB por alumno. 
+
+11. Referencias (documentación oficial y guías) 
+
+• AKS pricing & tiers: https://azure.microsoft.com/en-us/pricing/details/kubernetes-service/ 
+
+• Load Balancer pricing: https://azure.microsoft.com/en-us/pricing/details/load-balancer/ 
+
+• APIM pricing y SKUs: https://azure.microsoft.com/en-us/pricing/details/api-management/ 
+
+• Ingress NGINX external auth y patrones: https://kubernetes.github.io/ingress-nginx/examples/auth/oauth-external-auth/ 
+
+• NGINX Ingress (F5) y JWT (nativo en NGINX Plus): https://docs.nginx.com/nginx/admin-guide/security-controls/configuring-jwt-authentication/ 
+
+• App Routing add-on (managed NGINX) en AKS: https://learn.microsoft.com/en-us/azure/aks/app-routing 
  
   
