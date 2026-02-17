@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tcs-cloud-project
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tcs-cloud-project
+  template:
+    metadata:
+      labels:
+        app: tcs-cloud-project
+    spec:
+      imagePullSecrets:
+        - name: acr-secret
+      containers:
+      - name: tcs-cloud-project
+        image: 08tcscloudlab.azurecr.io/riksys/tcs-cloud-project:v1
+        ports:
+        - containerPort: 5000
