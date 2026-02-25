@@ -1,5 +1,0 @@
-rg-cloud-lab = "rg-cloud-lab"
-vnet-e08     = "vnet-e08"
-snet-e08     = "snet-e08"
-aks-e08      = "aks-e08"
-location     = "eastus"
