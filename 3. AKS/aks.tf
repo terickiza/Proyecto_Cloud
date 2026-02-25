@@ -33,7 +33,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   role_based_access_control_enabled = true
   oidc_issuer_enabled               = true
   workload_identity_enabled         = true
-  depends_on = []
+  depends_on                        = []
 }
 
 data "azurerm_client_config" "current" {}
