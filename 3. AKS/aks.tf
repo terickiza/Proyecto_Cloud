@@ -13,7 +13,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   # Pool del sistema: conectado a la Subnet existente (Azure CNI)
   default_node_pool {
-    name           = "system"
+    name           = "systeme08"
     vm_size        = "Standard_B2as_v2"
     node_count     = 1
     vnet_subnet_id = data.azurerm_subnet.aks.id
@@ -22,6 +22,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     # max_pods = 30
   }
 
+  
+ 
   # Azure CNI para que pods reciban IPs del subnet
   network_profile {
     network_plugin    = "azure"
@@ -34,6 +36,16 @@ resource "azurerm_kubernetes_cluster" "aks" {
   oidc_issuer_enabled               = true
   workload_identity_enabled         = true
   depends_on                        = []
+}
+
+resource "azurerm_kubernetes_cluster_node_pool" "app" {
+  name                  = "userpoole08"
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id  # referencia a tu cluster
+  vm_size               = "Standard_B2as_v2"
+  node_count            = 1
+  vnet_subnet_id        = data.azurerm_subnet.aks.id
+  mode                  = "User"
+  # max_pods            = 30
 }
 
 data "azurerm_client_config" "current" {}
