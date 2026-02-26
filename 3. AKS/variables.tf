@@ -28,3 +28,13 @@ variable "location" {
   type        = string
   default     = "eastus"
 }
+
+variable "tags" {
+  description = "Tags comunes para los recursos."
+  type        = map(string)
+  default = {
+    owner      = "erick.iza"
+    managed-by = "terraform"
+    env        = "lab"
+  }
+}

@@ -14,7 +14,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   # Pool del sistema: conectado a la Subnet existente (Azure CNI)
   default_node_pool {
     name           = "system"
-    vm_size        = "Standard_D2s_v5"
+    vm_size        = "Standard_B2as_v2"
     node_count     = 1
     vnet_subnet_id = data.azurerm_subnet.aks.id
     type           = "VirtualMachineScaleSets"
